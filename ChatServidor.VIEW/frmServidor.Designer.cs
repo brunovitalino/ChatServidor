@@ -119,6 +119,7 @@
             this.Name = "frmServidor";
             this.Text = "Servidor";
             this.TopMost = true;
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.frmServidor_FormClosing);
             this.Load += new System.EventHandler(this.frmServidor_Load);
             this.ResumeLayout(false);
             this.PerformLayout();

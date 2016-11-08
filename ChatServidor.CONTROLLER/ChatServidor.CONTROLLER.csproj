@@ -39,7 +39,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="RunClienteClasse.cs" />
     <Compile Include="StatusChangedEventArgs.cs" />
     <Compile Include="CServidor.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

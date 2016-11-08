@@ -64,6 +64,11 @@ namespace ChatServidor.CONTROLLER
         {
         }
 
+        public CServidor(string ip)
+        {
+            Ip = ip;
+        }
+
 
         //EVENTOS - O evento e o seu argumento irá notificar o formulário quando um usuário se conecta, desconecta, envia uma mensagem,etc
 
@@ -75,27 +80,27 @@ namespace ChatServidor.CONTROLLER
         // Este método é chamado quando o evento StatusChanged ocorre.
         public static void OnStatusChanged(StatusChangedEventArgs e)
         {
-            /*if (StatusChanged != null)
-                StatusChanged(this, e);*/
-
-
-            StatusChangedEventHandler statusHandler = StatusChanged;
+            /*StatusChangedEventHandler statusHandler = StatusChanged;
             if (statusHandler != null)
             {
                 statusHandler(null, e); // invoca o delegate
+            }*/
+            if (StatusChanged != null)
+            {
+                StatusChanged(null, e); // invoca o delegate
             }
         }
 
-        public void Conectar(string ip, bool conectar)
+        public void Conectar(bool conectar)
         {
-            Ip = ip;
+            Console.WriteLine("thread1 in");
 
             if (conectar)
             {
+                Conectado = true;
                 // Inicia uma nova tread que hospeda o listener
                 Thread ThreadConectar = new Thread(RunConectar);
                 ThreadConectar.Start();
-                Conectado = true;
             }
             else
             {
@@ -103,10 +108,10 @@ namespace ChatServidor.CONTROLLER
             }
 
             //
-            Console.WriteLine("thread1 in");
             Thread t = new Thread(RunDelay);
             t.Start();
             t.Join();
+
             Console.WriteLine("thread1 out");
         }
 
@@ -136,6 +141,7 @@ namespace ChatServidor.CONTROLLER
         private void RunAguardarNovosClientes()
         {
             Console.WriteLine("thread3 in");
+
             try
             {
                 // Pega o IP do primeiro dispostivo da rede.
@@ -148,25 +154,16 @@ namespace ChatServidor.CONTROLLER
                 TcpClient novoClienteSocket = new TcpClient();
                 // Auxiliar para incluir uma nova thread cliente na lista de threads que gerencia todos os clientes.
                 Thread ThreadCliente = null;
-                // Conectado!!
-                Conectado = true;
 
                 // Faz a verificação de novas conexões.
                 while (true)
                 {
-                    Thread.Sleep(500);
+                    Thread.Sleep(1500);
+                    Console.WriteLine("Conectado: " + Conectado);
+
                     // Essa condição nos auxilia na eliminação de threads existentes após desconectar.
                     if (!Conectado)
                     {
-                        Ouvinte.Stop();
-                        // Elimina todas as threads de clientes existentes.
-                        if (PilhaThreadsClientes.Count > 0)
-                        {
-                            while (PilhaThreadsClientes.Count > 0)
-                            {
-                                PilhaThreadsClientes.Dequeue().Abort();
-                            }
-                        }
                         // Quebra as próximas iterações, saindo do while(true).
                         break;
                     }
@@ -181,41 +178,55 @@ namespace ChatServidor.CONTROLLER
                         PilhaThreadsClientes.Enqueue(ThreadCliente);
                     }
                 }
+
+                Ouvinte.Stop();
+                // Elimina todas as threads de clientes existentes.
+                while (PilhaThreadsClientes.Count > 0)
+                {
+                    PilhaThreadsClientes.Dequeue().Abort();
+                }
+                novoClienteSocket.Close();
+                PilhaThreadsClientes = null;
             }
             catch (Exception e)
             {
                 Console.WriteLine(e.StackTrace);
             }
+
             Console.WriteLine("thread3 out");
         }
 
-        public void RunCliente(TcpClient clienteSocket)
+        private void RunCliente(TcpClient clienteSocket)
         {
             Console.WriteLine("thread4 in");
-            string usuario = "";
-            string resposta = "";
-            StreamReader Receptor = new StreamReader(clienteSocket.GetStream());
-            StreamWriter Transmissor = new StreamWriter(clienteSocket.GetStream());
-
-            resposta = Receptor.ReadLine();
-            EnviarMensagem(resposta.Substring(3), "entrou!");
-            /*
             try
             {
-                resposta = Receptor.ReadLine();
+                StreamReader Receptor = new StreamReader(clienteSocket.GetStream());
+                string resposta = "";
+                string usuario = "";
+                StreamWriter Transmissor = new StreamWriter(clienteSocket.GetStream());
+
+                resposta = Receptor.ReadLine().Replace(" ", ""); // Foi usado Replace só para garantir que não há espaços vazios.
                 // Sempre que um novo cliente se conecta, obrigatóriamente o servidor deve receber o código 01 e reenviar para confirmar a conexão.
                 if (resposta.Substring(0, 2).Equals("01"))
                 {
-                    usuario = resposta.Substring(3).Replace(" ", "");
+                    // O que sempre virá após o "01|" (código+pipe) será o nome de usuário.
+                    usuario = resposta.Substring(3);
+
+                    if (!usuario.Equals(""))
+                    {
+                        OnStatusChanged(new StatusChangedEventArgs(usuario + " entrou."));
+                    }
+                    /*
+                    usuario = resposta.Substring(3);
                     Console.WriteLine("usuario: " + usuario);
                     if (!usuario.Equals(""))
                     {
-                        usuario = "Bruno";
                         TabelaClientesSockets.Add(usuario, clienteSocket);
                         if (!TabelaClientesSockets.ContainsKey(usuario))
                         {
-                            Console.WriteLine("!TabelaClientesSockets.ContainsKey(" + usuario + ")");
-                            TabelaClientesSockets.Add(usuario, clienteSocket);
+                            //Console.WriteLine("!TabelaClientesSockets.ContainsKey(" + usuario + ")");
+                            //TabelaClientesSockets.Add(usuario, clienteSocket);
                             OnStatusChanged(new StatusChangedEventArgs(usuario + " entrou na sala."));
                             //while ((resposta = Receptor.ReadLine()) != "00")
                             //{
@@ -224,29 +235,25 @@ namespace ChatServidor.CONTROLLER
                         }
                         else
                         {
-                            Console.WriteLine("TabelaClientesSockets.ContainsKey(" + usuario + ")");
-                            OnStatusChanged(new StatusChangedEventArgs(usuario + " já existe."));
+                            //Console.WriteLine("TabelaClientesSockets.ContainsKey(" + usuario + ")");
+                            //OnStatusChanged(new StatusChangedEventArgs(usuario + " já existe."));
                         }
-                    }
+                    }*/
                 }
+
+                Receptor.Close();
+                Transmissor.Close();
             }
             catch (Exception e)
             {
                 Console.WriteLine(e.StackTrace);
             }
-            finally
-            {
-                Receptor.Close();
-                Transmissor.Close();
-                Console.WriteLine("Eliminando thread!!");
-                // Vai abortar essa própria thread.
-            }*/
             Console.WriteLine("thread4 out");
 
         }
 
         // Envia mensagens de um usuário para todos os outros
-        public void EnviarMensagem(string origem, string mensagem) //O parâmetro mensagem vai ser tudo que vem após o primeiro pipe da mensagem superior (resposta do cliente)
+        private void EnviarMensagem(string origem, string mensagem) //O parâmetro mensagem vai ser tudo que vem após o primeiro pipe da mensagem superior (resposta do cliente)
         {
             //StreamWriter swTransmissor;
 

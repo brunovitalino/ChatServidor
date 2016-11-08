@@ -23,16 +23,9 @@ namespace ChatServidor.VIEW
     public partial class frmServidor : Form
     {
         //VARIÁVEIS GLOBAIS
-        
-        private bool _conectando = false;
-        private bool _conectado = false;
-        private CServidor _servidor = new CServidor();
 
-        public bool Conectando
-        {
-            get { return _conectando; }
-            set { _conectando = value; }
-        }
+        private bool _conectado = false;
+        private CServidor _servidor;
 
         public bool Conectado
         {
@@ -115,6 +108,16 @@ namespace ChatServidor.VIEW
         private void btnConectar_Click(object sender, EventArgs e)
         {
             Conectar();
+        }
+
+        public void OnStatusChanged(object sender, StatusChangedEventArgs e)
+        {
+            this.Invoke(new AtualizaLogCallback(this.AtualizaLog), new object[] { e.MensagemEvento }); // Chama o método que atualiza o formulário
+        }
+
+        private void frmServidor_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            Application.Exit();
         }
 
 
@@ -214,21 +217,20 @@ namespace ChatServidor.VIEW
         {
             if (isMascaraValidada())
             {
-                btnConectar.Enabled = false;
-
                 if (!Conectado)
                 {
                     // Conectando...
+                    btnConectar.Enabled = false;
                     btnConectar.Text = "Conectando...";
                     btnConectar.BackColor = Color.Silver;
 
                     try
                     {
+                        Servidor = new CServidor(mskIp.Text.Replace(" ", ""));
                         // Vincula o tratamento de evento StatusChanged à nossoServidor_StatusChanged
                         CServidor.StatusChanged += new StatusChangedEventHandler(OnStatusChanged);
-                        Servidor.Conectar(mskIp.Text.Replace(" ", ""), true);
+                        Servidor.Conectar(true);
                         txtLog.AppendText("Conectado com o IP " + mskIp.Text.Replace(" ", "") + "\r\n");
-
                     }
                     catch (Exception e)
                     {
@@ -243,22 +245,16 @@ namespace ChatServidor.VIEW
                     // Desconectando...
                     btnConectar.Text = "Desconectando...";
 
-                    Servidor.Conectar(mskIp.Text.Replace(" ", ""), false);
+                    Servidor.Conectar(false);
                     Conectado = false;
-                    Servidor.I = Servidor.I + 50;
                     btnConectar.Text = "Conectar";
                     btnConectar.BackColor = Color.Black;
                     // .
                 }
-                Console.WriteLine("Valor Conectado: "+Servidor.Conectado);
+                Console.WriteLine("Servidor Conectado: " + Servidor.Conectado);
 
                 btnConectar.Enabled = true;
             }
-        }
-
-        public void OnStatusChanged(object sender, StatusChangedEventArgs e)
-        {
-            this.Invoke(new AtualizaLogCallback(this.AtualizaLog), new object[] { e.MensagemEvento }); // Chama o método que atualiza o formulário
         }
 
         private void AtualizaLog(string strMensagem)
