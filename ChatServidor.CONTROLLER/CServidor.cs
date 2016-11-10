@@ -25,7 +25,6 @@ namespace ChatServidor.CONTROLLER
         private bool _conectado = false;
         private Queue<Thread> _pilhaThreadsClientes = new Queue<Thread>();
         private Dictionary<string, TcpClient> _tabelaClientesSockets = new Dictionary<string, TcpClient>();
-        private int i = 0;
 
         public string Ip
         {
@@ -51,12 +50,6 @@ namespace ChatServidor.CONTROLLER
             set { _tabelaClientesSockets = value; }
         }
 
-        public int I
-        {
-            get { return i; }
-            set { i = value; }
-        }
-
 
         //CONSTRUTOR
 
@@ -80,68 +73,37 @@ namespace ChatServidor.CONTROLLER
         // Este método é chamado quando o evento StatusChanged ocorre.
         public static void OnStatusChanged(StatusChangedEventArgs e)
         {
-            /*StatusChangedEventHandler statusHandler = StatusChanged;
+            StatusChangedEventHandler statusHandler = StatusChanged;
             if (statusHandler != null)
             {
                 statusHandler(null, e); // invoca o delegate
-            }*/
-            if (StatusChanged != null)
+            }
+            /*if (StatusChanged != null)
             {
                 StatusChanged(null, e); // invoca o delegate
-            }
+            }*/
         }
 
         public void Conectar(bool conectar)
         {
             Console.WriteLine("thread1 in");
-
             if (conectar)
             {
                 Conectado = true;
                 // Inicia uma nova tread que hospeda o listener
-                Thread ThreadConectar = new Thread(RunConectar);
+                Thread ThreadConectar = new Thread(RunReceberNovosClientes);
                 ThreadConectar.Start();
             }
             else
             {
                 Conectado = false;
             }
-
-            //
-            Thread t = new Thread(RunDelay);
-            t.Start();
-            t.Join();
-
             Console.WriteLine("thread1 out");
         }
 
-        private void RunConectar()
+        private void RunReceberNovosClientes()
         {
             Console.WriteLine("thread2 in");
-            Thread ThreadAguardarNovosClientes = new Thread(RunAguardarNovosClientes);
-            ThreadAguardarNovosClientes.Start();
-            Console.WriteLine("thread2 out");
-
-            // Foi colocado true para garantir sempre a execução da condição interna do laço.
-            // Obs: utilizando a variável Conectado há uma chance em microssegundos de essa checagem não ocorrer.
-            /*while (true)
-            {
-                Thread.Sleep(3000);
-                Console.WriteLine(i + " thread Conectado:" + Conectado);
-                if (!Conectado)
-                {
-                    Console.WriteLine("TERMINAR RunConectar()");
-                    ThreadAguardarNovosClientes.Abort();
-                    break;
-                }
-                i++;
-            }*/
-        }
-
-        private void RunAguardarNovosClientes()
-        {
-            Console.WriteLine("thread3 in");
-
             try
             {
                 // Pega o IP do primeiro dispostivo da rede.
@@ -158,7 +120,7 @@ namespace ChatServidor.CONTROLLER
                 // Faz a verificação de novas conexões.
                 while (true)
                 {
-                    Thread.Sleep(1500);
+                    Thread.Sleep(500);
                     Console.WriteLine("Conectado: " + Conectado);
 
                     // Essa condição nos auxilia na eliminação de threads existentes após desconectar.
@@ -173,7 +135,7 @@ namespace ChatServidor.CONTROLLER
                         // Se o Pending() não fosse usado, o laço ficaria travado aqui, esperando por uma nova conexão.
                         novoClienteSocket = Ouvinte.AcceptTcpClient();
                         // Para evitar outro travamento do programa, criaemos uma thread que gerenciará o novo cliente.
-                        ThreadCliente = new Thread(() => RunCliente(novoClienteSocket));
+                        ThreadCliente = new Thread(() => RunServidor(novoClienteSocket));
                         ThreadCliente.Start();
                         PilhaThreadsClientes.Enqueue(ThreadCliente);
                     }
@@ -192,13 +154,12 @@ namespace ChatServidor.CONTROLLER
             {
                 Console.WriteLine(e.StackTrace);
             }
-
-            Console.WriteLine("thread3 out");
+            Console.WriteLine("thread2 out");
         }
 
-        private void RunCliente(TcpClient clienteSocket)
+        private void RunServidor(TcpClient clienteSocket)
         {
-            Console.WriteLine("thread4 in");
+            Console.WriteLine("thread3 in");
             try
             {
                 StreamReader Receptor = new StreamReader(clienteSocket.GetStream());
@@ -248,8 +209,7 @@ namespace ChatServidor.CONTROLLER
             {
                 Console.WriteLine(e.StackTrace);
             }
-            Console.WriteLine("thread4 out");
-
+            Console.WriteLine("thread3 out");
         }
 
         // Envia mensagens de um usuário para todos os outros
@@ -260,12 +220,6 @@ namespace ChatServidor.CONTROLLER
             // Primeiro exibe a mensagem na aplicação
             StatusChangedEventArgs E = new StatusChangedEventArgs(origem + " disse : " + mensagem);
             OnStatusChanged(E);
-        }
-
-        //
-        private void RunDelay()
-        {
-            Thread.Sleep(1000);
         }
     }
 }

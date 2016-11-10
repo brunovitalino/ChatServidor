@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 
 using ChatServidor.CONTROLLER;
+using System.Threading;
 
 namespace ChatServidor.VIEW
 {
@@ -117,6 +118,10 @@ namespace ChatServidor.VIEW
 
         private void frmServidor_FormClosing(object sender, FormClosingEventArgs e)
         {
+            if (Conectado)
+            {
+                Servidor.Conectar(false);
+            }
             Application.Exit();
         }
 
@@ -217,49 +222,73 @@ namespace ChatServidor.VIEW
         {
             if (isMascaraValidada())
             {
+                // Tenta se Conectar.
                 if (!Conectado)
                 {
                     // Conectando...
                     btnConectar.Enabled = false;
                     btnConectar.Text = "Conectando...";
                     btnConectar.BackColor = Color.Silver;
-
-                    try
-                    {
-                        Servidor = new CServidor(mskIp.Text.Replace(" ", ""));
-                        // Vincula o tratamento de evento StatusChanged à nossoServidor_StatusChanged
-                        CServidor.StatusChanged += new StatusChangedEventHandler(OnStatusChanged);
-                        Servidor.Conectar(true);
-                        txtLog.AppendText("Conectado com o IP " + mskIp.Text.Replace(" ", "") + "\r\n");
-                    }
-                    catch (Exception e)
-                    {
-                        MessageBox.Show("Erro de conexão : " + e.Message);
-                    }
-
-                    Conectado = true;
-                    btnConectar.Text = "Conectado";
+                    Servidor = new CServidor(mskIp.Text.Replace(" ", ""));
+                    // Vincula o tratamento de evento StatusChanged à nossoServidor_StatusChanged
+                    CServidor.StatusChanged += new StatusChangedEventHandler(OnStatusChanged);                    
+                    Servidor.Conectar(true);
                 }
                 else
                 {
                     // Desconectando...
+                    btnConectar.Enabled = false;
                     btnConectar.Text = "Desconectando...";
-
+                    btnConectar.BackColor = Color.Silver;
+                    CServidor.StatusChanged -= OnStatusChanged;
                     Servidor.Conectar(false);
-                    Conectado = false;
-                    btnConectar.Text = "Conectar";
-                    btnConectar.BackColor = Color.Black;
-                    // .
+                    Servidor = null;
                 }
-                Console.WriteLine("Servidor Conectado: " + Servidor.Conectado);
 
+                Console.WriteLine("Conectado antes:" + Conectado);
+                Thread t = new Thread(RunDelay);
+                t.Start();
+                t.Join(); //Espera a finalização da thread t para que o restante do algoritmo possa dar prosseguimento.
+                // Atualiza o valor de Conectado da camada VIEW.
+                if (Servidor != null)
+                {
+                    Conectado = Servidor.Conectado;
+                }
+                Console.WriteLine("Conectado dpois:" + Conectado);
+
+                // Resultado da tentativa de conexão.
+                if (Servidor!=null && Servidor.Conectado)
+                {
+                    Conectado = true;
+                    btnConectar.Text = "Conectado";
+                    btnConectar.ForeColor = Color.Black;
+                    btnConectar.BackColor = Color.White;
+                    txtLog.AppendText("Conectado com o IP " + mskIp.Text.Replace(" ", "") + "\r\n");
+                }
+                else
+                {
+                    Conectado = false;
+                    Servidor = null;
+                    btnConectar.Text = "Conectar";
+                    btnConectar.ForeColor = Color.White;
+                    btnConectar.BackColor = Color.Black;
+                    txtLog.AppendText("Conectado com o IP " + mskIp.Text.Replace(" ", "") + "\r\n");
+                }
+                Console.WriteLine("Conectado final:" + Conectado);
                 btnConectar.Enabled = true;
+                //MessageBox.Show("Erro de conexão : " + e.Message);
             }
         }
 
         private void AtualizaLog(string strMensagem)
         {
             txtLog.AppendText(strMensagem + "\r\n");
+        }
+
+        //
+        private static void RunDelay()
+        {
+            Thread.Sleep(1500);
         }
 
 
