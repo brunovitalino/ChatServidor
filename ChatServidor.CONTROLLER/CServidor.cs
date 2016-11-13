@@ -21,10 +21,10 @@ namespace ChatServidor.CONTROLLER
     {
         //VARIÁVEIS GLOBAIS
 
-        private string _ip = "";
-        private bool _conectado = false;
-        private Queue<Thread> _pilhaThreadsClientes = new Queue<Thread>();
-        private Dictionary<string, TcpClient> _tabelaClientesSockets = new Dictionary<string, TcpClient>();
+        private string _ip;
+        private bool _conectado;
+        private Queue<Thread> _pilhaThreadsClientes;
+        private Dictionary<string, TcpClient> _tabelaClientesSockets;
 
         public string Ip
         {
@@ -53,13 +53,11 @@ namespace ChatServidor.CONTROLLER
 
         //CONSTRUTOR
 
-        public CServidor()
-        {
-        }
-
         public CServidor(string ip)
         {
             Ip = ip;
+            Conectado = false;
+            TabelaClientesSockets = new Dictionary<string, TcpClient>();
         }
 
 
@@ -73,15 +71,10 @@ namespace ChatServidor.CONTROLLER
         // Este método é chamado quando o evento StatusChanged ocorre.
         public static void OnStatusChanged(StatusChangedEventArgs e)
         {
-            StatusChangedEventHandler statusHandler = StatusChanged;
-            if (statusHandler != null)
-            {
-                statusHandler(null, e); // invoca o delegate
-            }
-            /*if (StatusChanged != null)
+            if (StatusChanged != null)
             {
                 StatusChanged(null, e); // invoca o delegate
-            }*/
+            }
         }
 
         public void Conectar(bool conectar)
@@ -107,15 +100,18 @@ namespace ChatServidor.CONTROLLER
             try
             {
                 // Pega o IP do primeiro dispostivo da rede.
-                IPAddress IpFormatado = IPAddress.Parse(Ip);
+                IPAddress ipServidor = IPAddress.Parse(Ip);
                 // Cria um objeto TCP listener usando o IP do servidor e porta definidas.
-                TcpListener Ouvinte = new TcpListener(IpFormatado, 2502);
-                // Inicia o TCP listener e escuta as conexões.
-                Ouvinte.Start();
+                TcpListener ouvinte = new TcpListener(ipServidor, 2502);
                 // Receberá o socket do novo cliente que tenta se conectar.
                 TcpClient novoClienteSocket = new TcpClient();
-                // Auxiliar para incluir uma nova thread cliente na lista de threads que gerencia todos os clientes.
-                Thread ThreadCliente = null;
+                // Uma runnable que será incluso na pilha de runs clientes.
+                Thread threadCliente = null;
+                // Pilha de threads que guarda todas as runs clientes.
+                Queue<Thread> pilhaThreadsClientes = new Queue<Thread>();
+
+                // Inicia o TCP listener, iniciando a escuta por novas conexões.
+                ouvinte.Start();
 
                 // Faz a verificação de novas conexões.
                 while (true)
@@ -130,25 +126,27 @@ namespace ChatServidor.CONTROLLER
                         break;
                     }
                     // Essa condição impede que nosso código seja travado com a tentativa de obter nova conexão do listener.
-                    if (Ouvinte.Pending())
+                    if (ouvinte.Pending())
                     {
                         // Se o Pending() não fosse usado, o laço ficaria travado aqui, esperando por uma nova conexão.
-                        novoClienteSocket = Ouvinte.AcceptTcpClient();
+                        novoClienteSocket = ouvinte.AcceptTcpClient();
                         // Para evitar outro travamento do programa, criaemos uma thread que gerenciará o novo cliente.
-                        ThreadCliente = new Thread(() => RunServidor(novoClienteSocket));
-                        ThreadCliente.Start();
-                        PilhaThreadsClientes.Enqueue(ThreadCliente);
+                        threadCliente = new Thread(() => RunServidor(novoClienteSocket));
+                        threadCliente.Start();
+                        pilhaThreadsClientes.Enqueue(threadCliente);
                     }
                 }
 
-                Ouvinte.Stop();
-                // Elimina todas as threads de clientes existentes.
-                while (PilhaThreadsClientes.Count > 0)
+                // Para o TCP listener, parando a escuta por novas conexões.
+                ouvinte.Stop();
+
+                // Elimina todas as threads clientes existentes.
+                while (pilhaThreadsClientes.Count > 0)
                 {
-                    PilhaThreadsClientes.Dequeue().Abort();
+                    pilhaThreadsClientes.Dequeue().Abort();
                 }
                 novoClienteSocket.Close();
-                PilhaThreadsClientes = null;
+                pilhaThreadsClientes = null;
             }
             catch (Exception e)
             {
@@ -176,7 +174,15 @@ namespace ChatServidor.CONTROLLER
 
                     if (!usuario.Equals(""))
                     {
-                        OnStatusChanged(new StatusChangedEventArgs(usuario + " entrou."));
+                        if (!TabelaClientesSockets.ContainsKey(usuario))
+                        {
+                            TabelaClientesSockets.Add(usuario, clienteSocket);
+                            OnStatusChanged(new StatusChangedEventArgs(usuario + " se conectou."));
+                        }
+                        else
+                        {
+                            OnStatusChanged(new StatusChangedEventArgs(usuario + " já existe."));
+                        }
                     }
                     /*
                     usuario = resposta.Substring(3);

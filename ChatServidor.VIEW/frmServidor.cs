@@ -263,7 +263,7 @@ namespace ChatServidor.VIEW
                     btnConectar.Text = "Conectado";
                     btnConectar.ForeColor = Color.Black;
                     btnConectar.BackColor = Color.White;
-                    txtLog.AppendText("Conectado com o IP " + mskIp.Text.Replace(" ", "") + "\r\n");
+                    txtLog.AppendText("Servidor online.\r\n");
                 }
                 else
                 {
@@ -272,7 +272,7 @@ namespace ChatServidor.VIEW
                     btnConectar.Text = "Conectar";
                     btnConectar.ForeColor = Color.White;
                     btnConectar.BackColor = Color.Black;
-                    txtLog.AppendText("Conectado com o IP " + mskIp.Text.Replace(" ", "") + "\r\n");
+                    txtLog.AppendText("Servidor offline.\r\n");
                 }
                 Console.WriteLine("Conectado final:" + Conectado);
                 btnConectar.Enabled = true;
