@@ -16,7 +16,7 @@ namespace ChatServidor.VIEW
 {
     // DELEGATE
 
-    public delegate void AtualizaLogCallback(string strMensagem);
+    public delegate void AtualizaLogCallback(string mensagem);
 
 
     // CLASSE
@@ -288,7 +288,7 @@ namespace ChatServidor.VIEW
         //
         private static void RunDelay()
         {
-            Thread.Sleep(1500);
+            Thread.Sleep(5000);
         }
 
 

@@ -8,7 +8,7 @@ namespace ChatServidor.CONTROLLER
 {
     public class StatusChangedEventArgs : EventArgs
     {
-        //VARIÁVEIS
+        //VARIÁVEIS GLOBAIS
 
         private string _mensagemEvento; // Estamos interessados na mensagem descrevendo o evento
 

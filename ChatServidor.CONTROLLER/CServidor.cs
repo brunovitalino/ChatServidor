@@ -25,6 +25,8 @@ namespace ChatServidor.CONTROLLER
         private bool _conectado;
         private Queue<Thread> _pilhaThreadsClientes;
         private Dictionary<string, TcpClient> _tabelaClientesSockets;
+        // Pilha de threads que guarda todas as runs clientes.
+        List<Thread> listaThreadsClientes = new List<Thread>();
 
         public string Ip
         {
@@ -106,9 +108,7 @@ namespace ChatServidor.CONTROLLER
                 // Receberá o socket do novo cliente que tenta se conectar.
                 TcpClient novoClienteSocket = new TcpClient();
                 // Uma runnable que será incluso na pilha de runs clientes.
-                Thread threadCliente = null;
-                // Pilha de threads que guarda todas as runs clientes.
-                Queue<Thread> pilhaThreadsClientes = new Queue<Thread>();
+                Thread threadConectarNovoCliente = null;
 
                 // Inicia o TCP listener, iniciando a escuta por novas conexões.
                 ouvinte.Start();
@@ -117,7 +117,6 @@ namespace ChatServidor.CONTROLLER
                 while (true)
                 {
                     Thread.Sleep(500);
-                    Console.WriteLine("Conectado: " + Conectado);
 
                     // Essa condição nos auxilia na eliminação de threads existentes após desconectar.
                     if (!Conectado)
@@ -131,22 +130,19 @@ namespace ChatServidor.CONTROLLER
                         // Se o Pending() não fosse usado, o laço ficaria travado aqui, esperando por uma nova conexão.
                         novoClienteSocket = ouvinte.AcceptTcpClient();
                         // Para evitar outro travamento do programa, criaemos uma thread que gerenciará o novo cliente.
-                        threadCliente = new Thread(() => RunServidor(novoClienteSocket));
-                        threadCliente.Start();
-                        pilhaThreadsClientes.Enqueue(threadCliente);
+                        threadConectarNovoCliente = new Thread(() => RunConectarNovoCliente(novoClienteSocket));
+                        threadConectarNovoCliente.Start();
                     }
                 }
-
                 // Para o TCP listener, parando a escuta por novas conexões.
                 ouvinte.Stop();
 
                 // Elimina todas as threads clientes existentes.
-                while (pilhaThreadsClientes.Count > 0)
+                while (listaThreadsClientes.Count > 0)
                 {
-                    pilhaThreadsClientes.Dequeue().Abort();
+                    listaThreadsClientes[listaThreadsClientes.Count - 1].Abort();
+                    listaThreadsClientes.RemoveAt(listaThreadsClientes.Count - 1);
                 }
-                novoClienteSocket.Close();
-                pilhaThreadsClientes = null;
             }
             catch (Exception e)
             {
@@ -155,7 +151,39 @@ namespace ChatServidor.CONTROLLER
             Console.WriteLine("thread2 out");
         }
 
-        private void RunServidor(TcpClient clienteSocket)
+        private void RunConectarNovoCliente(TcpClient novoClienteSocket)
+        {
+            // Uma runnable que será incluso na pilha de runs clientes.
+            Thread threadCliente = new Thread(() => RunClienteConectado(novoClienteSocket));
+            threadCliente.Start();
+            //listaThreadsClientes.Add(threadCliente);
+            //listaThreadsClientes = null;
+
+            // Se dentro de 2,5s não receber resposta, desconecte.
+            int tempoLimite = 0;
+            Console.WriteLine("COMECOU ESPERA");
+
+            /*while (true)
+            {
+                if (!Conectado)
+                {
+                    break;
+                }
+
+                //Thread.Sleep(100);
+                Thread.Sleep(100);
+                tempoLimite += 100;
+
+                if (tempoLimite >= 3000)
+                {
+                    break;
+                }
+            }*/
+
+            Console.WriteLine("TERMINO ESPERA");
+        }
+
+        private void RunClienteConectado(TcpClient clienteSocket)
         {
             Console.WriteLine("thread3 in");
             try
@@ -164,8 +192,10 @@ namespace ChatServidor.CONTROLLER
                 string resposta = "";
                 string usuario = "";
                 StreamWriter Transmissor = new StreamWriter(clienteSocket.GetStream());
+                // Se dentro de 2,5s não receber resposta, desconecte.
+                int tempoLimite = 0;
 
-                resposta = Receptor.ReadLine().Replace(" ", ""); // Foi usado Replace só para garantir que não há espaços vazios.
+                resposta = Receptor.ReadLine(); // Foi usado Replace só para garantir que não há espaços vazios.
                 // Sempre que um novo cliente se conecta, obrigatóriamente o servidor deve receber o código 01 e reenviar para confirmar a conexão.
                 if (resposta.Substring(0, 2).Equals("01"))
                 {
@@ -178,38 +208,52 @@ namespace ChatServidor.CONTROLLER
                         {
                             TabelaClientesSockets.Add(usuario, clienteSocket);
                             OnStatusChanged(new StatusChangedEventArgs(usuario + " se conectou."));
+
+                            // Mantém a conexão.
+                            while (true)
+                            {
+                                Thread.Sleep(500);
+
+                                // Código 00: Desconexão.
+                                if (!Conectado || resposta.Substring(0, 2).Equals("00"))
+                                {
+                                    TabelaClientesSockets.Remove(usuario);
+                                    OnStatusChanged(new StatusChangedEventArgs(usuario + " se desconectou."));
+                                    
+                                    Transmissor.WriteLine("00");
+                                    Transmissor.Flush();
+                                    break;
+                                }
+                                // Código 10: Mensagem.
+                                else if (resposta.Substring(0, 2).Equals("10"))
+                                {
+                                    EnviarMensagem(usuario + " diz: " + resposta.Substring(3));
+                                }
+                                else if (resposta.Substring(0, 2).Equals("11"))
+                                {
+                                    // ~~
+                                }
+                                else
+                                {
+                                    Transmissor.WriteLine("01");
+                                    Transmissor.Flush();
+                                }
+
+                                resposta = Receptor.ReadLine();
+                            }
                         }
                         else
                         {
-                            OnStatusChanged(new StatusChangedEventArgs(usuario + " já existe."));
+                            OnStatusChanged(new StatusChangedEventArgs("Nova conexão de cliente negada. " + usuario + " já existe."));
+                            Transmissor.WriteLine("00|" + usuario + " já existe.");
+                            Transmissor.Flush();
                         }
                     }
-                    /*
-                    usuario = resposta.Substring(3);
-                    Console.WriteLine("usuario: " + usuario);
-                    if (!usuario.Equals(""))
-                    {
-                        TabelaClientesSockets.Add(usuario, clienteSocket);
-                        if (!TabelaClientesSockets.ContainsKey(usuario))
-                        {
-                            //Console.WriteLine("!TabelaClientesSockets.ContainsKey(" + usuario + ")");
-                            //TabelaClientesSockets.Add(usuario, clienteSocket);
-                            OnStatusChanged(new StatusChangedEventArgs(usuario + " entrou na sala."));
-                            //while ((resposta = Receptor.ReadLine()) != "00")
-                            //{
-
-                            //}
-                        }
-                        else
-                        {
-                            //Console.WriteLine("TabelaClientesSockets.ContainsKey(" + usuario + ")");
-                            //OnStatusChanged(new StatusChangedEventArgs(usuario + " já existe."));
-                        }
-                    }*/
+                    Console.WriteLine("FIMMMMMM");
                 }
-
                 Receptor.Close();
                 Transmissor.Close();
+
             }
             catch (Exception e)
             {
@@ -219,13 +263,20 @@ namespace ChatServidor.CONTROLLER
         }
 
         // Envia mensagens de um usuário para todos os outros
-        private void EnviarMensagem(string origem, string mensagem) //O parâmetro mensagem vai ser tudo que vem após o primeiro pipe da mensagem superior (resposta do cliente)
+        private void EnviarMensagem(string mensagem) //O parâmetro mensagem vai ser tudo que vem após o primeiro pipe da mensagem superior (resposta do cliente)
         {
-            //StreamWriter swTransmissor;
+            StreamWriter transmissor;
 
             // Primeiro exibe a mensagem na aplicação
-            StatusChangedEventArgs E = new StatusChangedEventArgs(origem + " disse : " + mensagem);
-            OnStatusChanged(E);
+            OnStatusChanged(new StatusChangedEventArgs(mensagem));
+
+            // Envia a mensagem para todos os clientes conectados.
+            foreach (KeyValuePair<string, TcpClient> entry in TabelaClientesSockets)
+            {
+                transmissor = new StreamWriter(entry.Value.GetStream());
+                transmissor.WriteLine("10|" + mensagem);
+                transmissor.Flush();
+            }
         }
     }
 }
